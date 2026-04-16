@@ -26,7 +26,7 @@
  #include <limits>
  #include <stdexcept>
  #include <functional>
- 
+
  #include "controller_interface/helpers.hpp"
  #include "hardware_interface/types/hardware_interface_type_values.hpp"
  #include "lifecycle_msgs/msg/state.hpp"
@@ -35,16 +35,16 @@
  #include "rcl_interfaces/msg/parameter_descriptor.hpp"
  #include "tf2/LinearMath/Quaternion.hpp"
  #include "tf2/utils.hpp"
- 
- 
+
+
  namespace ffw_swerve_drive_controller
  {
- 
+
  using hardware_interface::HW_IF_POSITION;
  using hardware_interface::HW_IF_VELOCITY;
  using rcl_interfaces::msg::ParameterDescriptor;
  using rcl_interfaces::msg::ParameterType;
- 
+
  // Reset function
  void SwerveDriveController::reset_controller_reference_msg(
    const std::shared_ptr<geometry_msgs::msg::Twist> & msg)
@@ -56,14 +56,14 @@
    msg->angular.y = std::numeric_limits<double>::quiet_NaN();
    msg->angular.z = std::numeric_limits<double>::quiet_NaN();
  }
- 
+
  // --- Controller Implementation ---
  SwerveDriveController::SwerveDriveController()
  : controller_interface::ControllerInterface(),
    ref_timeout_(0, 0)
  {}
  // *****************************************
- 
+
 CallbackReturn SwerveDriveController::on_init()
 {
   try {
@@ -89,7 +89,7 @@ CallbackReturn SwerveDriveController::on_init()
 
     auto_declare<std::string>("cmd_vel_topic", "/cmd_vel");
     auto_declare<double>("cmd_vel_timeout", 500.0);
- 
+
      // Odometry parameters
      auto_declare<std::string>("odom_solver_method", "svd");
      auto_declare<std::string>("odom_frame_id", "odom");
@@ -103,12 +103,12 @@ CallbackReturn SwerveDriveController::on_init()
          0.01});
      auto_declare<int>("velocity_rolling_window_size", 1);
      auto_declare<std::string>("odom_source", "feedback");
- 
+
      // Visualization parameters
      auto_declare<bool>("enable_visualization", true);
      auto_declare<std::string>("visualization_marker_topic", "~/swerve_visualization_markers");
      auto_declare<double>("visualization_update_time", 10.0);
- 
+
      // Create the parameter listener and get the parameters
      param_listener_ = std::make_shared<ParamListener>(get_node());
      params_ = param_listener_->get_params();
@@ -119,7 +119,7 @@ CallbackReturn SwerveDriveController::on_init()
   }
   return CallbackReturn::SUCCESS;
 }
- 
+
  // command_interface_configuration, state_interface_configuration
  controller_interface::InterfaceConfiguration
  SwerveDriveController::command_interface_configuration()
@@ -127,7 +127,7 @@ CallbackReturn SwerveDriveController::on_init()
  {
    controller_interface::InterfaceConfiguration conf;
    conf.type = controller_interface::interface_configuration_type::INDIVIDUAL;
- 
+
    std::vector<std::string> steering_names;
    std::vector<std::string> wheel_names;
    try {
@@ -143,7 +143,7 @@ CallbackReturn SwerveDriveController::on_init()
      // It's safer to return an empty config here, let CM handle missing interfaces later
      return conf;
    }
- 
+
    if (steering_names.empty() || wheel_names.empty()) {
      RCLCPP_WARN(
        get_node()->get_logger(),
@@ -156,7 +156,7 @@ CallbackReturn SwerveDriveController::on_init()
        "Steering and wheel joint names parameters must have the same size!");
      return conf;
    }
- 
+
    conf.names.reserve(steering_names.size() + wheel_names.size());
    for (const auto & joint_name : steering_names) {
      conf.names.push_back(joint_name + "/" + HW_IF_POSITION);
@@ -166,13 +166,13 @@ CallbackReturn SwerveDriveController::on_init()
    }
    return conf;
  }
- 
+
  controller_interface::InterfaceConfiguration SwerveDriveController::state_interface_configuration()
  const
  {
    controller_interface::InterfaceConfiguration conf;
    conf.type = controller_interface::interface_configuration_type::INDIVIDUAL;
- 
+
    std::vector<std::string> steering_names;
    std::vector<std::string> wheel_names;
    try {
@@ -185,7 +185,7 @@ CallbackReturn SwerveDriveController::on_init()
        e.what());
      return conf;
    }
- 
+
    if (steering_names.empty() || wheel_names.empty()) {
      RCLCPP_WARN(get_node()->get_logger(), "Joint names parameters are empty during state config.");
      return conf;
@@ -196,7 +196,7 @@ CallbackReturn SwerveDriveController::on_init()
        "Steering and wheel joint names parameters must have the same size!");
      return conf;
    }
- 
+
    conf.names.reserve(steering_names.size() + wheel_names.size());
    for (const auto & joint_name : steering_names) {
      conf.names.push_back(joint_name + "/" + HW_IF_POSITION);
@@ -206,7 +206,7 @@ CallbackReturn SwerveDriveController::on_init()
    }
    return conf;
  }
- 
+
 CallbackReturn SwerveDriveController::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
@@ -216,7 +216,7 @@ CallbackReturn SwerveDriveController::on_configure(
   if (param_listener_->is_old(params_)) {
     params_ = param_listener_->get_params();
   }
- 
+
    // Get parameters
    try {
      steering_joint_names_ = get_node()->get_parameter("steering_joint_names").as_string_array();
@@ -245,12 +245,12 @@ CallbackReturn SwerveDriveController::on_configure(
        "steering_alignment_start_angle_error_threshold").as_double();
      steering_alignment_start_speed_error_threshold_ = get_node()->get_parameter(
        "steering_alignment_start_speed_error_threshold").as_double();
- 
+
      linear_vel_deadband_ = get_node()->get_parameter(
        "linear_vel_deadband").as_double();
      angular_vel_deadband_ = get_node()->get_parameter(
        "angular_vel_deadband").as_double();
- 
+
     cmd_vel_topic_ = get_node()->get_parameter("cmd_vel_topic").as_string();
     cmd_vel_timeout_ = get_node()->get_parameter("cmd_vel_timeout").as_double();
      odom_frame_id_ = get_node()->get_parameter("odom_frame_id").as_string();
@@ -268,9 +268,9 @@ CallbackReturn SwerveDriveController::on_configure(
      visualization_update_time_ = get_node()->get_parameter("visualization_update_time").as_double();
      velocity_rolling_window_size_ =
        get_node()->get_parameter("velocity_rolling_window_size").as_int();
- 
+
      ref_timeout_ = rclcpp::Duration::from_seconds(cmd_vel_timeout_);
- 
+
      enabled_speed_limits_ = params_.enabled_speed_limits;
      publish_limited_velocity_ = params_.publish_limited_velocity;
      limiter_linear_x_ = SpeedLimiter(
@@ -296,9 +296,9 @@ CallbackReturn SwerveDriveController::on_configure(
      RCLCPP_FATAL(logger, "Exception during parameter reading: %s", e.what());
      return CallbackReturn::ERROR;
    }
- 
+
    num_modules_ = steering_joint_names_.size();
- 
+
    // --- Parameter Validation ---
    if (steering_joint_names_.size() != num_modules_ || wheel_joint_names_.size() != num_modules_ ||
      module_x_offsets_.size() != num_modules_ || module_y_offsets_.size() != num_modules_ ||
@@ -330,7 +330,7 @@ CallbackReturn SwerveDriveController::on_configure(
      RCLCPP_ERROR(logger, "'wheel_radius' must be positive.");
      return CallbackReturn::ERROR;
    }
- 
+
    // --- Setup Subscriber ---
   cmd_vel_subscriber_ = get_node()->create_subscription<CmdVelMsg>(
     cmd_vel_topic_, rclcpp::SystemDefaultsQoS(),
@@ -342,7 +342,7 @@ CallbackReturn SwerveDriveController::on_configure(
   reset_controller_reference_msg(initial_cmd);
   cmd_vel_buffer_.initRT(initial_cmd);
   last_cmd_vel_time_ = get_node()->now();
- 
+
    // Publisher
    try {
      odom_s_publisher_ = get_node()->create_publisher<nav_msgs::msg::Odometry>(
@@ -352,8 +352,8 @@ CallbackReturn SwerveDriveController::on_configure(
      RCLCPP_FATAL(logger, "Exception during publisher creation: %s", e.what());
      return CallbackReturn::ERROR;
    }
- 
- 
+
+
    // initialize odometry and set parameters
    try {
      odometry_.init(get_node()->now());
@@ -378,14 +378,14 @@ CallbackReturn SwerveDriveController::on_configure(
      RCLCPP_FATAL(logger, "Error initializing odometry: %s", e.what());
      return CallbackReturn::ERROR;
    }
- 
+
    // --- Realtime Odom State Publisher ---
    rt_odom_state_publisher_->lock();
    rt_odom_state_publisher_->msg_.header.stamp = get_node()->now();
    rt_odom_state_publisher_->msg_.header.frame_id = odom_frame_id_;
    rt_odom_state_publisher_->msg_.child_frame_id = base_frame_id_;
    rt_odom_state_publisher_->msg_.pose.pose.position.z = 0;
- 
+
    constexpr size_t NUM_DIMENSIONS = 6;
    auto & pose_covariance = rt_odom_state_publisher_->msg_.pose.covariance;
    auto & twist_covariance = rt_odom_state_publisher_->msg_.twist.covariance;
@@ -394,9 +394,9 @@ CallbackReturn SwerveDriveController::on_configure(
      pose_covariance[diagonal_index] = pose_covariance_diagonal_[index];
      twist_covariance[diagonal_index] = twist_covariance_diagonal_[index];
    }
- 
+
    rt_odom_state_publisher_->unlock();
- 
+
    // --- TF State Publisher ---
    try {
      // Tf State publisher
@@ -438,7 +438,7 @@ CallbackReturn SwerveDriveController::on_configure(
      }
      rt_commanded_joint_state_publisher_->unlock();
    }
- 
+
   // ***** Visualizer *****
   if (enable_visualization_) {
     visualizer_ = std::make_unique<MarkerVisualize>();
@@ -449,7 +449,7 @@ CallbackReturn SwerveDriveController::on_configure(
       this->get_node(), base_frame_id_, visualization_marker_topic_, num_modules_,
       visualization_update_time_);
   }
- 
+
    // ---publish_limited_velocity  ---
    if (publish_limited_velocity_) {
      limited_velocity_publisher_ =
@@ -482,7 +482,7 @@ CallbackReturn SwerveDriveController::on_configure(
     num_modules_, wheel_radius_);
   return CallbackReturn::SUCCESS;
  }
- 
+
  CallbackReturn SwerveDriveController::on_activate(
    const rclcpp_lifecycle::State & /*previous_state*/)
  {
@@ -558,7 +558,7 @@ CallbackReturn SwerveDriveController::on_configure(
         i, steering_cmd_pos_ptr ? "OK" : "MISSING", wheel_cmd_vel_ptr ? "OK" : "MISSING");
       return CallbackReturn::ERROR;
     }
- 
+
     // --- Add found handles and params to module_handles_ vector ---
     module_handles_.emplace_back(
       ModuleHandles{
@@ -577,7 +577,7 @@ CallbackReturn SwerveDriveController::on_configure(
   RCLCPP_DEBUG(get_node()->get_logger(), "Activation successful with %zu modules", num_modules_);
   return CallbackReturn::SUCCESS;
  }
- 
+
 CallbackReturn SwerveDriveController::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
@@ -598,7 +598,7 @@ CallbackReturn SwerveDriveController::on_deactivate(
   RCLCPP_DEBUG(get_node()->get_logger(), "Deactivation complete");
   return CallbackReturn::SUCCESS;
 }
- 
+
 // helper function to normalize angles to [-π, +π]
 double SwerveDriveController::normalize_angle(double angle_rad)
 {
@@ -624,15 +624,15 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
   }
   return result;
 }
- 
+
  controller_interface::return_type SwerveDriveController::update(
    const rclcpp::Time & time, const rclcpp::Duration & period)
  {
    double time_gap = std::max(0.001, period.seconds());
- 
+
    // 1. read the latest command velocity
    auto current_cmd_vel_ptr = cmd_vel_buffer_.readFromRT();
- 
+
    // check if the command velocity is valid
    bool timeout = false;
    // Check if ref_timeout_ is valid (non-zero duration) before calculating difference
@@ -643,7 +643,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
        time.seconds(), last_cmd_vel_time_.seconds(), ref_timeout_.seconds());
      timeout = true;
    }
- 
+
   if (timeout) {
     target_vx_ = 0.0;
     target_vy_ = 0.0;
@@ -652,11 +652,11 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
    } else if (current_cmd_vel_ptr && *current_cmd_vel_ptr) {
      // Valid command pointer received
      const auto & current_cmd_vel = **current_cmd_vel_ptr;
- 
+
      double new_vx = current_cmd_vel.linear.x;
      double new_vy = current_cmd_vel.linear.y;
      double new_wz = current_cmd_vel.angular.z;
- 
+
      if (std::abs(new_vx) < linear_vel_deadband_) {
        new_vx = 0.0;
      }
@@ -666,23 +666,23 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
      if (std::abs(new_wz) < angular_vel_deadband_) {
        new_wz = 0.0;
      }
- 
+
     target_vx_ = new_vx;
      target_vy_ = new_vy;
      target_wz_ = new_wz;
    }
- 
+
    if (std::isnan(target_vx_) || std::isnan(target_vy_) || std::isnan(target_wz_)) {
      target_vx_ = 0.0;
      target_vy_ = 0.0;
      target_wz_ = 0.0;
    }
- 
+
    // --- 1.1 command may be limited further by SpeedLimit without affecting the stored twist command
    if (enabled_speed_limits_) {
      Twist previous_cmd;
      Twist pprevious_cmd;
- 
+
      if (cmd_velocity_history_len_ >= 2) {
        pprevious_cmd = cmd_velocity_history_[0];
        previous_cmd = cmd_velocity_history_[1];
@@ -693,7 +693,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
        previous_cmd = Twist();
        pprevious_cmd = Twist();
      }
- 
+
      // target_vx_, target_vy_, target_wz_ is the current command velocity (before limiting)
      // SpeedLimiter limits the target velocities based on the previous command and the time period
      limiter_linear_x_.limit(
@@ -705,12 +705,12 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
      limiter_angular_z_.limit(
        target_wz_, previous_cmd.angular.z, pprevious_cmd.angular.z,
        time_gap);
- 
+
      Twist current_limited_cmd_obj;
      current_limited_cmd_obj.linear.x = target_vx_;
      current_limited_cmd_obj.linear.y = target_vy_;
      current_limited_cmd_obj.angular.z = target_wz_;
- 
+
      if (cmd_velocity_history_len_ >= 2) {
        cmd_velocity_history_[0] = cmd_velocity_history_[1];
        cmd_velocity_history_[1] = current_limited_cmd_obj;
@@ -721,7 +721,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
        cmd_velocity_history_[0] = current_limited_cmd_obj;
        cmd_velocity_history_len_ = 1;
      }
- 
+
      // if publish_limited_velocity_ is true, publish the limited velocity
      if (publish_limited_velocity_ && realtime_limited_velocity_publisher_ &&
        realtime_limited_velocity_publisher_->trylock())
@@ -733,7 +733,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
        realtime_limited_velocity_publisher_->unlockAndPublish();
      }
    }
- 
+
   // --- 2. align the steering w.r.t offset and set the value ---
   // Early validation: check module_handles_ once instead of per iteration
   const size_t handle_count = module_handles_.size();
@@ -764,7 +764,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
       break;
     }
   }
- 
+
   // --- 3. update the odometry ---
   if (all_states_read) {
     bool odom_ok = (odom_source_ == "command") ?
@@ -777,7 +777,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
         "Odometry update failed (dt=%.6f)", time_gap);
     }
   }
- 
+
   // --- 4. calculate the wheel velocities and steering angles based on the inverse kinematics ---
   // All modules must pass alignment gating before any wheel torque is applied from §4.6.
   bool all_steering_aligned = true;
@@ -804,7 +804,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
     const double target_wheel_speed = std::hypot(wheel_vel_x, wheel_vel_y);
     const double target_steering_joint_angle =
       normalize_angle(target_steering_angle_robot - angle_offset);
- 
+
      // 4.2. Current joint state: reuse §2 buffers when the full read succeeded (no duplicate HW read).
      double current_steering_angle = 0.0;
      double current_wheel_velocity = 0.0;
@@ -830,7 +830,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
          continue;
        }
      }
- 
+
     // 4.3. Apply 180° Rule (Steering Flip Optimization)
     // Instead of turning 270°, turn -90° and reverse the drive motor direction
     double optimized_steering_angle = target_steering_joint_angle;
@@ -845,7 +845,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
       optimized_steering_angle = normalize_angle(target_steering_joint_angle + M_PI);
       wheel_rotation_direction = -1.0;
     }
- 
+
     // 4.3.1. Handle mechanical steering limit at ±π (±180°)
     // If the shortest path would cross this boundary, flip the steering instead
     {
@@ -878,10 +878,10 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
         reversal_target_steering_angle_[i] = optimized_steering_angle;
       }
     }
- 
+
      // 4.4. Wrap-around steering angle to [-π, +π] range (-180° ~ +180°)
      double limited_steering_cmd = normalize_angle(optimized_steering_angle);
- 
+
     // Determine steering command based on reversal phase
     double steering_target_for_this_cycle = limited_steering_cmd;
 
@@ -929,7 +929,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
     }
 
     wheel_speed_scale_[i] = std::clamp(wheel_speed_scale_[i], 0.0, 1.0);
- 
+
     // 4.5. Apply steering angular velocity limit for smooth control
     if (enabled_steering_angular_velocity_limit_) {
       double effective_steering_vel_limit = steering_angular_velocity_limit_;
@@ -967,14 +967,14 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
       // No velocity limit - directly use target angle
       optimized_steering_angle = steering_target_for_this_cycle;
     }
- 
+
      // 4.6. Calculate the final wheel velocity command
      // Use previous direction during DECEL phase, new direction after STEERING phase
      double effective_direction = (reversal_phase_[i] == ReversalPhase::DECELERATING) ?
        previous_wheel_rotation_direction_[i] : wheel_rotation_direction;
      double final_wheel_vel_cmd = effective_direction * target_wheel_speed *
        wheel_speed_scale_[i] / wheel_radius_;
- 
+
      // 4.7. save the commands in order to send the hardware interface
      // and stop the wheel when steering is not aligned
      try {
@@ -993,7 +993,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
          module_steering_aligned = false;
        }
        all_steering_aligned = all_steering_aligned && module_steering_aligned;
- 
+
       // Limit the wheel velocity command
       if (final_wheel_vel_cmd < module_wheel_speed_limit_lower_[i] ||
         final_wheel_vel_cmd > module_wheel_speed_limit_upper_[i])
@@ -1009,7 +1009,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
             clipped_wheel_vel_cmd / final_wheel_vel_cmd);
         }
       }
- 
+
      // joints commands
      final_steering_commands_[i] = optimized_steering_angle;
      final_wheel_velocity_commands_[i] = final_wheel_vel_cmd;
@@ -1051,7 +1051,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
     }
   }
    wheel_saturation_scale_factor_ = 1.0;
- 
+
    // --- 6. publish odometry message and TF and joint commadns and marker visualization---
    tf2::Quaternion orientation;
    orientation.setRPY(0.0, 0.0, odometry_.getYaw());
@@ -1065,7 +1065,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
      rt_odom_state_publisher_->msg_.twist.twist.angular.z = odometry_.getWz();
      rt_odom_state_publisher_->unlockAndPublish();
    }
- 
+
    // Publish tf /odom frame
    if (enable_odom_tf_ && rt_tf_odom_state_publisher_->trylock()) {
      rt_tf_odom_state_publisher_->msg_.transforms.front().header.stamp = time;
@@ -1075,7 +1075,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
        tf2::toMsg(orientation);
      rt_tf_odom_state_publisher_->unlockAndPublish();
    }
- 
+
   // Publish joint commands in order to compare the actual joint states
   if (rt_commanded_joint_state_publisher_ && rt_commanded_joint_state_publisher_->trylock()) {
     auto & msg = rt_commanded_joint_state_publisher_->msg_;
@@ -1090,7 +1090,7 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
     }
     rt_commanded_joint_state_publisher_->unlockAndPublish();
   }
- 
+
   // publish visualization markers
   if (enable_visualization_ && visualizer_ &&
     (time - last_visualization_publish_time_).seconds() >= visualization_update_time_)
@@ -1109,20 +1109,19 @@ double SwerveDriveController::shortest_angular_distance(double from, double to)
   }
    return controller_interface::return_type::OK;
  }
- 
+
 void SwerveDriveController::reference_callback(const std::shared_ptr<CmdVelMsg> msg)
 {
   last_cmd_vel_time_ = this->get_node()->now();
   cmd_vel_buffer_.writeFromNonRT(msg);
 }
- 
+
  }  // namespace ffw_swerve_drive_controller
- 
+
  // Pluginlib export macro
  #include "pluginlib/class_list_macros.hpp"
- 
+
  // Export the controller class as a plugin
  PLUGINLIB_EXPORT_CLASS(
    ffw_swerve_drive_controller::SwerveDriveController,
    controller_interface::ControllerInterface)
- 
