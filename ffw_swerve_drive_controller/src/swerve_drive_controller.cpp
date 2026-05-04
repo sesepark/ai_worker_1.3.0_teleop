@@ -703,7 +703,7 @@ controller_interface::return_type SwerveDriveController::update(
     limiter_linear_x_.limit(
       target_vx_, previous_cmd.linear.x, pprevious_cmd.linear.x,
       time_gap);
-    limiter_linear_x_.limit(
+    limiter_linear_y_.limit(
       target_vy_, previous_cmd.linear.y, pprevious_cmd.linear.y,
       time_gap);
     limiter_angular_z_.limit(
@@ -1040,7 +1040,7 @@ controller_interface::return_type SwerveDriveController::update(
       handle.wheel_cmd_vel.get().set_value(0.0);
       final_steering_commands_[i] = hold_angle;
       final_wheel_velocity_commands_[i] = 0.0;
-      previoud_steering_commands_[i] = hold_angle; // Sync for open loop mode
+      previoud_steering_commands_[i] = hold_angle;
     }
   } else {
     // Update the final commands
